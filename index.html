@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Детективи частин мови</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;padding:14px;min-height:100vh;display:flex;justify-content:center;background:#d9efb4;color:#1f2a44;font-family:"Trebuchet MS","Segoe UI",system-ui,sans-serif}
+#app{width:100%;max-width:760px;height:fit-content;background:#fff;border:4px solid #6fb53a;border-radius:20px;padding:20px}
+h1{margin:0 0 6px;text-align:center;color:#d62f2f;font-size:1.7em;letter-spacing:.5px}
+.top{display:flex;justify-content:space-between;font-weight:700}
+.bar{height:12px;background:#e4ebd6;border-radius:8px;overflow:hidden;margin:8px 0}
+.bar i{display:block;height:100%;background:#6fb53a;transition:width .3s}
+.card{background:#f3fae4;border-radius:14px;padding:16px;margin:12px 0;font-size:1.2em;line-height:1.9;text-align:center}
+.word{font-size:2em;font-weight:800;padding:6px}
+.opts{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+button{font:inherit;cursor:pointer;border:2px solid #b5c99a;background:#fff;border-radius:12px;padding:10px 12px;color:#1f2a44}
+button:hover:not(:disabled){background:#eef7dc}
+button:disabled{cursor:default}
+.tok{display:inline-block;margin:2px 3px;padding:2px 10px}
+.sel{background:#dbe6ff;border-color:#3b64c9}
+.ok{background:#c8efbd!important;border-color:#2e9d3a!important;color:#14532d}
+.bad{background:#ffc8c8!important;border-color:#d62828!important;color:#7f1d1d}
+.miss{border:2px dashed #2e9d3a!important}
+.main{background:#6fb53a;color:#fff;border-color:#5a9a2c;font-weight:700;padding:12px 28px;margin-top:10px}
+.main:hover:not(:disabled){background:#5a9a2c}
+.fb{margin-top:10px;padding:10px 14px;border-radius:12px;background:#fff6d6;line-height:1.5}
+.center{text-align:center}
+.hl{background:#ffd84d;border-radius:8px;padding:0 8px;font-weight:800}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+const NAMES={n:'Іменник',adj:'Прикметник',num:'Числівник',pron:'Займенник',v:'Дієслово',adv:'Прислівник',prep:'Прийменник',conj:'Сполучник',part:'Частка',self:'Самостійна частина мови'};
+const HINT={
+n:'Іменник називає предмет і відповідає на питання хто? що?',
+adj:'Прикметник означає ознаку предмета: який? яка? яке? які? чий?',
+num:'Числівник означає кількість або порядок: скільки? котрий?',
+pron:'Займенник вказує на предмет, ознаку чи кількість, але не називає їх (я, ми, вона, хто).',
+v:'Дієслово означає дію: що робити? що зробити? що робить? що зробив?',
+adv:'Прислівник означає ознаку дії: як? де? куди? коли? чому? навіщо?',
+prep:'Прийменник стоїть перед іменником чи займенником і пов’язує слова (в, на, над, до, для, через).',
+conj:'Сполучник єднає слова або частини речення (і, та, а, але, що, бо).',
+part:'Частка додає відтінки значення (не, ні, хай, лише, чи).'};
+const LV=[
+{t:'Хто є хто?',d:'Визнач, до якої частини мови належить слово.'},
+{t:'Знайди підозрюваних',d:'У реченні знайди всі слова потрібної частини мови. Можна вибрати кілька слів.'},
+{t:'Службові слова',d:'Виділене слово — службове чи самостійне? Якщо службове, то яке саме?'}];
+const W={
+n:'дружба школа ведмідь сніг радість Київ річка'.split(' '),
+adj:'добрий осінній весела зелене холодні мамина'.split(' '),
+num:'п’ять двадцять третій сорок перший'.split(' '),
+pron:'я ми вона вони хто ти'.split(' '),
+v:'бігти малювати співає прочитав думає'.split(' '),
+adv:'швидко вчора далеко тихо сьогодні поруч'.split(' ')};
+const S=[
+'Маленьке|adj кошеня|n тихо|adv спало|v на|prep теплому|adj дивані.|n',
+'Три|num білі|adj гуски|n плавали|v у|prep ставку.|n',
+'Ми|pron читали|v цікаву|adj книжку|n і|conj малювали|v малюнки.|n',
+'Хлопчик|n не|part хотів|v йти|v до|prep школи,|n але|conj мама|n наполягала.|v',
+'Восени|adv птахи|n летять|v далеко|adv на|prep південь.|n',
+'Яскраве|adj сонце|n піднялося|v над|prep лісом,|n і|conj птахи|n защебетали.|v',
+'Моя|pron сестра|n живе|v в|prep великому|adj місті.|n',
+'П’ятого|num вересня|n діти|n пішли|v до|prep школи.|n',
+'Хай|part сяє|v сонце|n над|prep рідною|adj Україною!|n',
+'Я|pron знаю,|v що|conj ти|pron вчасно|adv прийдеш.|v',
+'Вона|pron принесла|v квіти|n для|prep мами|n та|conj бабусі.|n',
+'Чи|part ти|pron бачив|v високі|adj гори?|n',
+'Швидкий|adj потяг|n мчить|v через|prep поле|n і|conj ліс.|n',
+'Десять|num учнів|n лише|part почали|v писати|v диктант.|n',
+'Мама|n купила|v мені|pron нові|adj чоботи,|n бо|conj настала|v зима.|n',
+'Брат|n і|conj сестра|n граються|v під|prep деревом.|n',
+'Без|prep води|n рослини|n не|part ростуть.|v',
+'Учитель|n пояснив|v нову|adj тему|n дуже|adv зрозуміло,|adv а|conj діти|n уважно|adv слухали.|v'];
+const SV=['prep','conj','part'];
+const sh=a=>[...a].sort(()=>Math.random()-.5);
+const pick=a=>a[Math.floor(Math.random()*a.length)];
+const parse=s=>s.split(' ').map(t=>{const[w,g]=t.split('|');return{w,g}});
+const strip=w=>w.replace(/[.,!?:]/g,'');
+const $=document.getElementById('app');
+let st;
+
+function build(){
+  const L1=sh(Object.keys(W)).slice(0,5).map(g=>({w:pick(W[g]),a:g}));
+  const sents=S.map(parse);
+  const L2=sh(sents).slice(0,5).map(t=>({t,a:pick([...new Set(t.map(x=>x.g))])}));
+  const L3=sh(sents).slice(0,5).map(t=>{
+    const sv=t.map((x,k)=>SV.includes(x.g)?k:-1).filter(k=>k>=0);
+    const ot=t.map((x,k)=>SV.includes(x.g)?-1:k).filter(k=>k>=0);
+    const i=Math.random()<.3?pick(ot):pick(sv);
+    return{t,i,a:SV.includes(t[i].g)?t[i].g:'self'};
+  });
+  return[L1,L2,L3];
+}
+function reset(){st={lv:0,i:0,intro:true,sc:[0,0,0],items:build(),ans:false,pick:null,sel:new Set(),ok:false};draw()}
+const cur=()=>st.items[st.lv][st.i];
+function start(){st.intro=false;draw()}
+function next(){st.i++;st.ans=false;st.pick=null;st.sel=new Set();if(st.i==5){st.lv++;st.i=0;st.intro=true}draw()}
+function ans(g){if(st.ans)return;st.pick=g;st.ans=true;if(g==cur().a)st.sc[st.lv]++;draw()}
+function tog(k){if(st.ans)return;st.sel.has(k)?st.sel.delete(k):st.sel.add(k);draw()}
+function check(){const it=cur();st.ok=it.t.every((x,k)=>st.sel.has(k)==(x.g==it.a));if(st.ok)st.sc[1]++;st.ans=true;draw()}
+
+function head(){
+  const d=Math.min(st.lv*5+(st.intro?0:st.i)+(st.ans?1:0),15);
+  return`<h1>Детективи частин мови</h1><div class="top"><span>Рівень ${Math.min(st.lv+1,3)} з 3</span><span>★ ${st.sc[0]+st.sc[1]+st.sc[2]} б.</span></div><div class="bar"><i style="width:${d/15*100}%"></i></div>`;
+}
+function opt(keys){
+  const it=cur();
+  return keys.map(x=>{let c='';if(st.ans){if(x==it.a)c='ok';else if(x==st.pick)c='bad'}
+    return`<button class="${c}" ${st.ans?'disabled':''} onclick="ans('${x}')">${NAMES[x]}</button>`}).join('');
+}
+function draw(){
+  if(st.lv>2)return fin();
+  const L=st.lv;let h=head();
+  if(st.intro){
+    const p=L?`<div>Рівень ${L} пройдено: <b>${st.sc[L-1]} з 5</b></div>`:'';
+    $.innerHTML=h+`<div class="card">${p}<b>Рівень ${L+1}. ${LV[L].t}</b><br>${LV[L].d}</div><div class="center"><button class="main" onclick="start()">Почати</button></div>`;
+    return;
+  }
+  const it=cur();let b='',fb='';
+  if(L==0){
+    b=`<div class="card"><div>Яка це частина мови?</div><div class="word">${it.w}</div></div><div class="opts">${opt(Object.keys(W))}</div>`;
+  }else if(L==1){
+    b=`<div class="card"><div>Знайди всі слова: <span class="hl">${NAMES[it.a]}</span></div><div>`+
+      it.t.map((x,k)=>{let c='';
+        if(st.ans){const s=st.sel.has(k);c=s?(x.g==it.a?'ok':'bad'):(x.g==it.a?'miss':'')}
+        else if(st.sel.has(k))c='sel';
+        return`<button class="tok ${c}" ${st.ans?'disabled':''} onclick="tog(${k})">${x.w}</button>`}).join('')+`</div></div>`;
+    if(!st.ans)b+=`<div class="center"><button class="main" onclick="check()">Перевірити</button></div>`;
+    else fb=(st.ok?'Правильно! Усіх підозрюваних знайдено. ':'Є помилки: червоні слова зайві, зелений пунктир — пропущені слова. ')+HINT[it.a];
+  }else{
+    const s=it.t.map((x,k)=>k==it.i?`<span class="hl">${x.w}</span>`:x.w).join(' ');
+    b=`<div class="card">${s}</div><div class="center">Що це за слово: <b>${strip(it.t[it.i].w)}</b>?</div><div class="opts" style="margin-top:8px">${opt(['prep','conj','part','self'])}</div>`;
+  }
+  if(L!=1&&st.ans){
+    const g=L==2&&it.a=='self'?it.t[it.i].g:it.a;
+    fb=(st.pick==it.a?'Правильно! ':'Правильна відповідь: '+NAMES[it.a]+(it.a=='self'?' ('+NAMES[g].toLowerCase()+')':'')+'. ')+HINT[g];
+  }
+  if(st.ans)b+=`<div class="fb">${fb}</div><div class="center"><button class="main" onclick="next()">${st.lv==2&&st.i==4?'Результат':'Далі'}</button></div>`;
+  $.innerHTML=h+b;
+}
+function fin(){
+  const t=st.sc[0]+st.sc[1]+st.sc[2];
+  const r=t>=14?'Головний детектив':t>=9?'Детектив':'Стажер';
+  const w=st.sc.indexOf(Math.min(...st.sc));
+  $.innerHTML=head()+`<div class="card"><div>Справу розкрито!</div><div class="word">${t} з 15</div><div>Звання: <b>${r}</b></div></div>`+
+    LV.map((l,k)=>`<div class="fb ${st.sc[k]>=4?'ok':st.sc[k]<=2?'bad':''}">Рівень ${k+1}. ${l.t}: <b>${st.sc[k]} з 5</b></div>`).join('')+
+    (st.sc[w]<5?`<div class="fb">Варто потренуватися: рівень ${w+1} («${LV[w].t}»).</div>`:'<div class="fb">Усі відповіді правильні!</div>')+
+    `<div class="center"><button class="main" onclick="reset()">Нова справа</button></div>`;
+}
+reset();
+</script>
+</body>
+</html>
